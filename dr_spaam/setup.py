@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="dr_spaam",
-    version="1.1",
+    version="1.2",
     author='Dan Jia',
     author_email='jia@vision.rwth-aachen.de',
     package_dir={'': 'src'},

@@ -17,7 +17,7 @@ else:
     _clip = np.clip
     # print("use np.clip")
 
-def get_laser_phi(angle_inc=np.radians(0.5), num_pts=450):
+def get_laser_phi(angle_inc=np.radians(0.207), num_pts=1088):
     # Default setting of DROW, which use SICK S300 laser, with 225 deg fov
     # and 450 pts, mounted at 37cm height.
     laser_fov = (num_pts - 1) * angle_inc  # 450 points

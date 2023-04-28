@@ -40,28 +40,38 @@ def inference_time():
 
 def play_sequence():
     # scans
-    seq_name = './data/DROWv2-data/test/run_t_2015-11-26-11-22-03.bag.csv'
+    #seq_name = './data/DROWv2-data/test/run_t_2015-11-26-11-22-03.bag.csv'
     # seq_name = './data/DROWv2-data/val/run_2015-11-26-15-52-55-k.bag.csv'
+    seq_name = './bin/test_data/front_scanner-2.csv'
     scans_data = np.genfromtxt(seq_name, delimiter=',')
-    scans_t = scans_data[:, 1]
-    scans = scans_data[:, 2:]
-    scan_phi = u.get_laser_phi()    
+    #scans_t = scans_data[:, 1]
+    scans = scans_data#[scan for i, scan in enumerate(scans_data) if (i % 2) == 0]#[:, 2:]
+    # Set specification of the laser
+    num_pts = len(scans[0])
+    field_of_view = 180 # Seasony's lidar
+    angle_inc = np.radians(field_of_view / num_pts)
 
+    scan_phi = u.get_laser_phi(angle_inc, num_pts) # Returns evenly separated points based on the field of view \\ Assume angle_inc is the separation between points 
+    #print(len(scan_phi))
+    '''
     # odometry, used only for plotting
     odo_name = seq_name[:-3] + 'odom2'
     odos = np.genfromtxt(odo_name, delimiter=',')
     odos_t = odos[:, 1]
     odos_phi = odos[:, 4]
+    '''
 
     # detector
-    ckpt = './ckpts/dr_spaam_e40.pth'
-    detector = Detector(model_name="DR-SPAAM", ckpt_file=ckpt, gpu=True, stride=1)
-    detector.set_laser_spec(angle_inc=np.radians(0.5), num_pts=450)
+    #ckpt = './ckpts/dr_spaam_e40.pth'
+    ckpt = 'ckpts\dr_spaam_e40.pth'
+    detector = Detector(model_name="DR-SPAAM", ckpt_file=ckpt, gpu=True, stride=3)
+    detector.set_laser_spec(angle_inc, num_pts)
 
     # scanner location
-    rad_tmp = 0.5 * np.ones(len(scan_phi), dtype=np.float)
+    rad_tmp = 0.5 * np.ones(len(scan_phi), dtype=float)
     xy_scanner = u.rphi_to_xy(rad_tmp, scan_phi)
     xy_scanner = np.stack(xy_scanner, axis=1)
+    #print(xy_scanner)
 
     # plot
     fig = plt.figure(figsize=(10, 10))
@@ -88,35 +98,42 @@ def play_sequence():
         ax.set_title('Press any key to exit.')
         ax.axis("off")
 
+        '''
         # find matching odometry
         while odo_idx < len(odos_t) - 1 and odos_t[odo_idx] < scans_t[i]:
             odo_idx += 1
         odo_phi = odos_phi[odo_idx]
+        #print(f'Odom: {odos_t[odo_idx]} Scan: {scans_t[i]}')
         odo_rot = np.array([[np.cos(odo_phi), np.sin(odo_phi)],
                             [-np.sin(odo_phi), np.cos(odo_phi)]], dtype=np.float32)
+        '''
 
         # plot scanner location
-        xy_scanner_rot = np.matmul(xy_scanner, odo_rot.T)
+        xy_scanner_rot = xy_scanner#np.matmul(xy_scanner, odo_rot.T)
         ax.plot(xy_scanner_rot[:, 0], xy_scanner_rot[:, 1], c='black')
         ax.plot((0, xy_scanner_rot[0, 0] * 1.0), (0, xy_scanner_rot[0, 1] * 1.0), c='black')
         ax.plot((0, xy_scanner_rot[-1, 0] * 1.0), (0, xy_scanner_rot[-1, 1] * 1.0), c='black')
 
         # plot points
         scan = scans[i]
-        scan_x, scan_y = u.rphi_to_xy(scan, scan_phi + odo_phi)
+        scan_x, scan_y = u.rphi_to_xy(scan, scan_phi)#+ odo_phi)
         ax.scatter(scan_x, scan_y, s=1, c='blue')
 
         # inference
+        #print(f" \n {scan}")
         dets_xy, dets_cls, instance_mask = detector(scan)
-
+        
         # plot detection
-        dets_xy_rot = np.matmul(dets_xy, odo_rot.T)
-        cls_thresh = 0.5
+        dets_xy_rot = dets_xy#np.matmul(dets_xy, odo_rot.T)
+        cls_thresh = 0.6
         for j in range(len(dets_xy)):
+            #print(f"Detection at postion {dets_xy[j]} with confidence {dets_cls[j]}")
             if dets_cls[j] < cls_thresh:
                 continue
             # c = plt.Circle(dets_xy_rot[j], radius=0.5, color='r', fill=False)
+            #print(f"Detection at postion {dets_xy[j]} with confidence {dets_cls[j]}")
             c = plt.Circle(dets_xy_rot[j], radius=0.5, color='r', fill=False, linewidth=2)
+            
             ax.add_artist(c)
 
         # plt.savefig('/home/dan/tmp/det_img/frame_%04d.png' % i)
@@ -154,11 +171,11 @@ def play_sequence_with_tracking():
 
     # detector
     ckpt = './ckpts/dr_spaam_e40.pth'
-    detector = Detector(model_name="DR-SPAAM", ckpt_file=ckpt, gpu=True, stride=1, tracking=True)
+    detector = Detector(model_name="DR-SPAAM", ckpt_file=ckpt, gpu=True, stride=3, tracking=True)
     detector.set_laser_spec(angle_inc=np.radians(0.5), num_pts=450)
 
     # scanner location
-    rad_tmp = 0.5 * np.ones(len(scan_phi), dtype=np.float)
+    rad_tmp = 0.5 * np.ones(len(scan_phi), dtype=float)
     xy_scanner = u.rphi_to_xy(rad_tmp, scan_phi)
     xy_scanner = np.stack(xy_scanner, axis=1)
 
@@ -209,7 +226,7 @@ def play_sequence_with_tracking():
 
         # plot detection
         dets_xy_rot = np.matmul(dets_xy, odo_rot.T)
-        cls_thresh = 0.3
+        cls_thresh = 0.5
         for j in range(len(dets_xy)):
             if dets_cls[j] < cls_thresh:
                 continue
